@@ -1024,7 +1024,7 @@ localAreaName: 'কালীগঞ্জ',
 localAreaInfo: 'কালীগঞ্জ সাতক্ষীরা লোকাল ডেলিভারি — সম্পূর্ণ ফ্রি, কোনো অগ্রিম পেমেন্ট লাগবে না',
 guestCheckoutEnabled: true, sizeGuideEnabled: true, videoReviewEnabled: true,
 productQuestionLive: true,
-cloudinaryCloudName: 'kthbpmc3', cloudinaryUploadPreset: 'mustlookgenz'
+
 };
 
 let settings = { ...DEFAULT_SETTINGS };
@@ -1049,8 +1049,8 @@ const d = settings.deliveryCharge;
 if (d !== undefined && d !== null && d !== '' && !isNaN(Number(d))) return Number(d);
 return 130;
 }
-function cloudinaryCloudName(){ return (settings.cloudinaryCloudName || 'kthbpmc3').trim(); }
-function cloudinaryUploadPreset(){ return (settings.cloudinaryUploadPreset || 'mustlookgenz').trim(); }
+
+
 
 function applySettings(){
 const bnEl = document.getElementById('brandName');
@@ -1737,25 +1737,28 @@ arr.sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0));
 return arr;
 } catch(e){ return []; }
 },
-async uploadToCloudinary(file, resourceType='image', onProgress){
-const cloudName = 'kj0sladz';
-const preset = 'mustlook_easyshop';
+async uploadToImgBB(file, resourceType='image', onProgress){
+/* ImgBB - permanent free image hosting */
+const apiKey = 'b5a348cc586bd8e400aa9b8b0f547b42';
+if (resourceType === 'video') {
+  return Promise.reject(new Error('ImgBB ভিডিও সাপোর্ট করে না। শুধু ছবি আপলোড করুন।'));
+}
 const fd = new FormData();
-fd.append('file', file);
-fd.append('upload_preset', 'mustlook_easyshop');
-fd.append('api_key', '357481255992133');
-const url = `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`;
+fd.append('image', file);
 return new Promise((resolve, reject) => {
 const xhr = new XMLHttpRequest();
-xhr.open('POST', url);
+xhr.open('POST', 'https://api.imgbb.com/1/upload?key=' + apiKey);
 xhr.upload.onprogress = (e) => {
 if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded/e.total) * 100));
 };
 xhr.onload = () => {
 try {
 const data = JSON.parse(xhr.responseText);
-if (data.secure_url) resolve(data.secure_url);
-else reject(new Error(data.error?.message || 'Upload failed'));
+if (data.success && data.data && (data.data.url || data.data.display_url)) {
+resolve(data.data.url || data.data.display_url);
+} else {
+reject(new Error((data.error && data.error.message) || 'ImgBB upload failed'));
+}
 } catch(e){ reject(e); }
 };
 xhr.onerror = () => reject(new Error('Network error'));
@@ -3193,7 +3196,7 @@ const uploads = [];
 for (let i=0; i<toAdd; i++){
 const file = files[i];
 if (!file.type.startsWith('image/')) continue;
-uploads.push(FB.uploadToCloudinary(file, 'image').catch(()=>null));
+uploads.push(FB.uploadToImgBB(file, 'image').catch(()=>null));
 }
 const results = await Promise.all(uploads);
 let success = 0, failed = 0;
@@ -3221,27 +3224,10 @@ window.removeReviewImage = removeReviewImage;
 function handleReviewVideo(ev){
 const file = ev.target.files && ev.target.files[0];
 if (!file) return;
-if (!file.type.startsWith('video/')){ toast('শুধু ভিডিও ফাইল সিলেক্ট করুন', 'err'); return; }
-if (file.size > 50 * 1024 * 1024){ toast('⚠️ ভিডিও ৫০MB এর কম হতে হবে', 'err'); return; }
-const video = document.createElement('video');
-video.preload = 'metadata';
-video.onloadedmetadata = async function(){
-URL.revokeObjectURL(video.src);
-const dur = Number(video.duration);
-if (isFinite(dur) && dur > 65){ toast('⚠️ ভিডিও সর্বোচ্চ ১ মিনিট হতে হবে', 'err'); return; }
-const progBox = $('#revVidProg'), progBar = $('#revVidBar');
-if (progBox) progBox.style.display = 'block';
-try {
-const url = await FB.uploadToCloudinary(file, 'video', (pct) => { if (progBar) progBar.style.width = pct + '%'; });
-_reviewVideoUrl = url;
-const preview = $('#revVideoPreview');
-if (preview) preview.innerHTML = `<video src="${url}" controls playsinline style="max-width:100%;max-height:160px;border-radius:8px"></video><button type="button" class="btn btn-sm btn-ghost" style="margin-top:6px" onclick="removeReviewVideo()">${ICO.trash} ভিডিও সরান</button>`;
-toast('✓ ভিডিও আপলোড সম্পন্ন', 'ok');
-} catch(e){ toast('ভিডিও আপলোড ব্যর্থ: ' + e.message, 'err'); }
-if (progBox) progBox.style.display = 'none';
-};
-video.onerror = () => { toast('⚠️ ভিডিও পড়া যায়নি', 'err'); URL.revokeObjectURL(video.src); };
-video.src = URL.createObjectURL(file);
+// ImgBB does not support video uploads
+toast('⚠️ বর্তমানে ভিডিও রিভিউ সাপোর্ট বন্ধ আছে (ImgBB শুধু ছবি সাপোর্ট করে)। শুধু ছবি দিয়ে রিভিউ দিন।', 'warn');
+ev.target.value = '';
+return;
 }
 window.handleReviewVideo = handleReviewVideo;
 
@@ -3961,7 +3947,7 @@ if (progBox) progBox.classList.add('show');
 if (progBar) progBar.style.width = '0%';
 
 try {
-const url = await FB.uploadToCloudinary(file, 'image', (pct) => {
+const url = await FB.uploadToImgBB(file, 'image', (pct) => {
 if (progBar) progBar.style.width = pct + '%';
 });
 S.checkout.paymentProofUrl = url;
@@ -3996,12 +3982,7 @@ preview.innerHTML = `
 if (statusBox) statusBox.innerHTML = `<div class="payment-proof-success">${ICO.check} পেমেন্ট স্ক্রিনশট আপলোড সম্পন্ন — ভেরিফিকেশনের জন্য প্রস্তুত</div>`;
 }
 
-/* ✅ FIX 7: Note about orphaned Cloudinary uploads (client-side deletion unsafe without API secret) */
-function removePaymentProof(){
-// ⚠️ Note: The old Cloudinary URL is left orphaned on the CDN.
-// Full deletion requires a signed API call (api_key + api_secret) which
-// must NOT be exposed client-side. Admin can bulk-clean orphans via
-// the Cloudinary dashboard or a server-side maintenance script.
+/* Image uploads now use ImgBB (permanent free hosting) */
 const oldUrl = S.checkout.paymentProofUrl;
 S.checkout.paymentProofUrl = '';
 save();
@@ -4815,7 +4796,7 @@ ${[
 ${u ? `<button class="btn btn-ghost btn-block" style="margin-top:14px;color:var(--danger)" onclick="doLogout()">লগআউট</button>` : ''}
 
 <div class="card card-pad" style="margin-top:14px;text-align:center">
-<div style="font-size:12.5px;color:var(--muted);line-height:1.8">সংস্করণ ১০.০ · ${esc(brandTitle())}<br>Firebase · Cloudinary<br>সাপোর্ট: ${esc(CONFIG.store.supportPhone)}</div>
+<div style="font-size:12.5px;color:var(--muted);line-height:1.8">সংস্করণ ১০.০ · ${esc(brandTitle())}<br>Firebase · ImgBB<br>সাপোর্ট: ${esc(CONFIG.store.supportPhone)}</div>
 </div>
 ${siteFooter()}`;
 }
@@ -4842,7 +4823,7 @@ const file = ev.target.files && ev.target.files[0];
 if (!file) return;
 if (!file.type.startsWith('image/')){ toast('শুধু ইমেজ ফাইল সিলেক্ট করুন', 'err'); return; }
 try {
-const url = await FB.uploadToCloudinary(file, 'image');
+const url = await FB.uploadToImgBB(file, 'image');
 S.profilePic = url;
 save();
 const prev = $('#picPreview');
@@ -5509,7 +5490,7 @@ Google <b>DoubleClick DART cookie</b> ব্যবহার করে বিজ�
 <div class="highlight" style="line-height:1.9">
 • <b>Google AdSense:</b> বিজ্ঞাপন প্রদর্শন<br>
 • <b>Google Firebase:</b> ডেটাবেস, অথেন্টিকেশন ও হোস্টিং<br>
-• <b>Cloudinary:</b> ছবি ও ভিডিও আপলোড/স্টোরেজ<br>
+• <b>ImgBB:</b> ছবি ও ভিডিও আপলোড/স্টোরেজ<br>
 • <b>সুন্দরবন কুরিয়ার:</b> পণ্য ডেলিভারি<br>
 • <b>bKash, Nagad:</b> পেমেন্ট প্রসেসিং
 </div>
@@ -5523,7 +5504,7 @@ Google <b>DoubleClick DART cookie</b> ব্যবহার করে বিজ�
 • <b>কুরিয়ার সার্ভিস:</b> ডেলিভারির জন্য নাম, ফোন, ঠিকানা<br>
 • <b>পেমেন্ট গেটওয়ে:</b> লেনদেন সম্পন্ন করতে<br>
 • <b>আইনি প্রয়োজনে:</b> আদালত বা সরকারি নির্দেশে<br>
-• <b>সেবা প্রদানকারী:</b> Firebase, Cloudinary
+• <b>সেবা প্রদানকারী:</b> Firebase, ImgBB
 </div>
 </div>
 
